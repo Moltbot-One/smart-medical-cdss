@@ -1,0 +1,188 @@
+# PostgreSQL HA (Patroni) 部署配置
+fullnameOverride: "cdss-postgresql"
+
+# 副本配置
+replicaCount: 3
+
+# 镜像配置
+image:
+  registry: docker.io
+  repository: bitnami/postgresql-repmgr
+  tag: "16.1.0-debian-11-r0"
+  pullPolicy: IfNotPresent
+
+# PostgreSQL配置
+postgresql:
+  username: cdss_admin
+  password: "${POSTGRESQL_PASSWORD}"  # 通过Secret注入
+  database: cdss_db
+  existingSecret: ""
+  
+  # 共享缓冲区配置 (25% of RAM)
+  sharedBuffers: "4GB"
+  
+  # 有效缓存大小 (50% of RAM)
+  effectiveCacheSize: "8GB"
+  
+  # 维护工作内存
+  maintenanceWorkMem: "1GB"
+  
+  # 检查点配置
+  checkpointCompletionTarget: 0.9
+  walBuffers: "16MB"
+  defaultStatisticsTarget: 100
+  
+  # 并发连接配置
+  maxConnections: 500
+  superuserReservedConnections: 10
+  
+  # WAL配置
+  maxWalSize: "4GB"
+  minWalSize: "1GB"
+  archiveMode: "on"
+  archiveCommand: "cp %p /archive/%f"
+  archiveTimeout: "60s"
+  
+  # 日志配置
+  logDestination: "stderr"
+  loggingCollector: "on"
+  logDirectory: "/var/log/postgresql"
+  logFilename: "postgresql-%Y-%m-%d_%H%M%S.log"
+  logRotationAge: "1d"
+  logRotationSize: "100MB"
+  logMinMessages: "warning"
+  logMinErrorStatement: "error"
+  logLinePrefix: "%t [%p]: [%l-1] user=%u,db=%d,app=%a,client=%h "
+  
+  # 性能监控
+  trackActivities: "on"
+  trackCounts: "on"
+  trackFunctions: "pl"
+  trackIoTiming: "on"
+  
+  # 自动清理
+  autovacuum: "on"
+  autovacuumMaxWorkers: 4
+  autovacuumNaptime: "1min"
+  autovacuumVacuumThreshold: 50
+  autovacuumVacuumScaleFactor: 0.1
+  autovacuumAnalyzeThreshold: 50
+  autovacuumAnalyzeScaleFactor: 0.05
+
+# Patroni HA配置
+patroni:
+  enabled: true
+  
+  # DCS (Distributed Configuration Store) 配置
+  dcs:
+    ttl: 30
+    loop_wait: 10
+    retry_timeout: 10
+    maximum_lag_on_failover: 1048576
+    master_start_timeout: 300
+    master_stop_timeout: 30
+    synchronous_mode: true
+    synchronous_mode_strict: false
+    postgresql:
+      use_pg_rewind: true
+      use_slots: true
+      parameters:
+        wal_level: replica
+        hot_standby: "on"
+        wal_keep_size: 1GB
+        max_slot_wal_keep_size: 2GB
+        max_replication_slots: 10
+        max_wal_senders: 10
+        
+  # 初始化配置
+  bootstrap:
+    dcs:
+      ttl: 30
+      loop_wait: 10
+      retry_timeout: 10
+      master_start_timeout: 300
+    method: initdb
+    initdb:
+      - encoding: UTF8
+      - data-checksums
+      - auth-local: trust
+      - auth-host: scram-sha-256
+    pg_hba:
+      - host replication replicator 0.0.0.0/0 scram-sha-256
+      - host all all 0.0.0.0/0 scram-sha-256
+      
+  # REST API配置
+  restapi:
+    listen: 0.0.0.0:8008
+    connect_address: $(POD_IP):8008
+    authentication:
+      username: patroni
+      password: ${PATRONI_API_PASSWORD}
+
+# 存储配置
+persistence:
+  enabled: true
+  storageClass: "fast-ssd"
+  accessMode: ReadWriteOnce
+  size: 500Gi
+  annotations: {}
+
+# 资源限制
+resources:
+  limits:
+    cpu: "8000m"
+    memory: "16Gi"
+  requests:
+    cpu: "4000m"
+    memory: "8Gi"
+
+# 反亲和性配置
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: cdss-postgresql
+        topologyKey: kubernetes.io/hostname
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: node-type
+              operator: In
+              values:
+                - database
+
+# 容忍度配置
+tolerations:
+  - key: "dedicated"
+    operator: "Equal"
+    value: "database"
+    effect: "NoSchedule"
+
+# 安全上下文
+securityContext:
+  enabled: true
+  fsGroup: 1001
+  runAsUser: 1001
+
+# 监控配置
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring
+    interval: 30s
+    scrapeTimeout: 10s
+
+# 备份配置
+backup:
+  enabled: true
+  schedule: "0 2 * * *"  # 每天凌晨2点
+  retention: 30d
+  storage:
+    type: s3
+    s3:
+      bucket: cdss-postgres-backups
+      region: cn-north-1
+      endpoint: s3.cn-north-1.amazonaws.com.cn

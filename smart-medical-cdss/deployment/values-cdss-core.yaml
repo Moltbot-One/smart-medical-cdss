@@ -1,0 +1,614 @@
+# CDSS核心应用Helm Values配置
+fullnameOverride: "cdss-core"
+
+# 全局配置
+global:
+  environment: production
+  region: cn-north-1
+  clusterName: cdss-prod-cluster
+  
+  # 镜像仓库配置
+  imageRegistry: "harbor.medical.com/cdss"
+  imagePullSecrets:
+    - name: regcred
+  
+  # 存储配置
+  storageClass: "fast-ssd"
+  sharedStorageClass: "shared"
+  
+  # 数据库配置
+  database:
+    host: cdss-postgresql-ha
+    port: 5432
+    name: cdss_db
+    
+  # 缓存配置
+  redis:
+    cluster:
+      enabled: true
+      nodes:
+        - cdss-redis-cluster-0.cdss-redis-cluster:6379
+        - cdss-redis-cluster-1.cdss-redis-cluster:6379
+        - cdss-redis-cluster-2.cdss-redis-cluster:6379
+
+# CDSS核心服务配置
+apiGateway:
+  enabled: true
+  replicaCount: 3
+  
+  image:
+    repository: cdss-gateway
+    tag: "5.2.0"
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+  
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+      nginx.ingress.kubernetes.io/rate-limit: "1000"
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    hosts:
+      - host: api.cdss.medical.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: cdss-api-tls
+        hosts:
+          - api.cdss.medical.com
+  
+  resources:
+    limits:
+      cpu: "4000m"
+      memory: "8Gi"
+    requests:
+      cpu: "2000m"
+      memory: "4Gi"
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  
+  config:
+    logLevel: info
+    timeout: 30s
+    maxConnections: 10000
+    rateLimit:
+      enabled: true
+      requestsPerSecond: 1000
+      burstSize: 2000
+    cors:
+      enabled: true
+      allowedOrigins:
+        - "https://cdss.medical.com"
+        - "https://admin.cdss.medical.com"
+      allowedMethods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+      allowedHeaders:
+        - "*"
+      allowCredentials: true
+      maxAge: 3600
+
+# 认证服务
+authService:
+  enabled: true
+  replicaCount: 3
+  
+  image:
+    repository: cdss-auth-service
+    tag: "5.2.0"
+  
+  service:
+    type: ClusterIP
+    port: 8081
+  
+  resources:
+    limits:
+      cpu: "2000m"
+      memory: "4Gi"
+    requests:
+      cpu: "1000m"
+      memory: "2Gi"
+  
+  config:
+    jwt:
+      secretName: cdss-jwt-secret
+      tokenValidity: 8h
+      refreshTokenValidity: 7d
+    oauth2:
+      enabled: true
+      providers:
+        - name: wecom
+          clientId: "${WECOM_CLIENT_ID}"
+          clientSecret: "${WECOM_CLIENT_SECRET}"
+        - name: dingtalk
+          clientId: "${DINGTALK_CLIENT_ID}"
+          clientSecret: "${DINGTALK_CLIENT_SECRET}"
+    saml:
+      enabled: true
+      idpMetadataUrl: "${SAML_IDP_METADATA_URL}"
+    ldap:
+      enabled: true
+      url: "${LDAP_URL}"
+      baseDn: "${LDAP_BASE_DN}"
+      bindDn: "${LDAP_BIND_DN}"
+      bindPassword: "${LDAP_BIND_PASSWORD}"
+
+# 核心引擎服务
+coreEngine:
+  enabled: true
+  replicaCount: 5
+  
+  image:
+    repository: cdss-core-engine
+    tag: "5.2.0"
+  
+  service:
+    type: ClusterIP
+    port: 8082
+  
+  resources:
+    limits:
+      cpu: "4000m"
+      memory: "8Gi"
+    requests:
+      cpu: "2000m"
+      memory: "4Gi"
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 5
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 60
+    metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 60
+      - type: Pods
+        pods:
+          metric:
+            name: http_requests_per_second
+          target:
+            type: AverageValue
+            averageValue: "1000"
+  
+  config:
+    decisionEngine:
+      ruleEvaluationTimeout: 5s
+      maxConcurrentEvaluations: 100
+      cacheEnabled: true
+      cacheTtl: 300s
+    clinicalPathways:
+      enabled: true
+      pathCacheSize: 1000
+    drugInteraction:
+      enabled: true
+      severityThreshold: "moderate"
+      updateInterval: "24h"
+    evidenceLibrary:
+      enabled: true
+      searchIndexUpdateInterval: "1h"
+
+# 知识库服务
+knowledgeBase:
+  enabled: true
+  replicaCount: 3
+  
+  image:
+    repository: cdss-kb-service
+    tag: "5.2.0"
+  
+  service:
+    type: ClusterIP
+    port: 8083
+  
+  resources:
+    limits:
+      cpu: "4000m"
+      memory: "16Gi"
+    requests:
+      cpu: "2000m"
+      memory: "8Gi"
+  
+  persistence:
+    enabled: true
+    size: 500Gi
+    storageClass: "fast-ssd"
+    accessMode: ReadWriteOnce
+  
+  config:
+    knowledgeGraph:
+      enabled: true
+      backend: "neo4j"
+      neo4j:
+        uri: "bolt://cdss-neo4j:7687"
+        username: "neo4j"
+        password: "${NEO4J_PASSWORD}"
+    semanticSearch:
+      enabled: true
+      embeddingModel: "sentence-transformers/all-MiniLM-L6-v2"
+      vectorStore:
+        type: "elasticsearch"
+        hosts:
+          - "cdss-elasticsearch-master:9200"
+    clinicalGuidelines:
+      updateSchedule: "0 2 * * *"  # 每天凌晨2点更新
+      sources:
+        - name: "NCCN"
+          url: "https://www.nccn.org/professionals/physician_gls/"
+        - name: "CSCO"
+          url: "https://www.csco.org.cn/"
+    drugDatabase:
+      source: "drugbank"
+      updateInterval: "7d"
+
+# 自然语言处理服务
+nlpService:
+  enabled: true
+  replicaCount: 3
+  
+  image:
+    repository: cdss-nlp-service
+    tag: "5.2.0"
+  
+  service:
+    type: ClusterIP
+    port: 8084
+  
+  resources:
+    limits:
+      cpu: "8000m"
+      memory: "16Gi"
+      nvidia.com/gpu: 1
+    requests:
+      cpu: "4000m"
+      memory: "8Gi"
+      nvidia.com/gpu: 1
+  
+  nodeSelector:
+    accelerator: nvidia-gpu
+    nvidia.com/gpu.present: "true"
+  
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
+  
+  config:
+    models:
+      clinicalNer:
+        model: "medical-ner-v2"
+        device: "cuda"
+        batchSize: 32
+      clinicalBert:
+        model: "emilyalsentzer/Bio_ClinicalBERT"
+        device: "cuda"
+        maxSeqLength: 512
+      medicalTextClassification:
+        model: "cdss/medical-text-classifier-v1"
+        device: "cuda"
+        classes:
+          - symptom_description
+          - diagnosis_record
+          - treatment_plan
+          - medication_order
+    
+    preprocessing:
+      enabled: true
+      steps:
+        - name: "text_cleaning"
+          type: "normalize_whitespace"
+        - name: "case_normalization"
+          type: "lowercase"
+        - name: "punctuation_handling"
+          type: "preserve_medical_symbols"
+    
+    inference:
+      maxBatchSize: 32
+      dynamicBatching: true
+      timeout: 30s
+      gpuMemoryFraction: 0.8
+
+# 计算机视觉服务
+cvService:
+  enabled: true
+  replicaCount: 2
+  
+  image:
+    repository: cdss-cv-service
+    tag: "5.2.0"
+  
+  service:
+    type: ClusterIP
+    port: 8085
+  
+  resources:
+    limits:
+      cpu: "8000m"
+      memory: "32Gi"
+      nvidia.com/gpu: 2
+    requests:
+      cpu: "4000m"
+      memory: "16Gi"
+      nvidia.com/gpu: 2
+  
+  nodeSelector:
+    accelerator: nvidia-gpu
+    nvidia.com/gpu.present: "true"
+  
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
+  
+  config:
+    models:
+      chestXrayAnalysis:
+        model: "chexnet-v2"
+        inputSize: [224, 224]
+        diseases:
+          - atelectasis
+          - cardiomegaly
+          - effusion
+          - infiltration
+          - mass
+          - nodule
+          - pneumonia
+          - pneumothorax
+      ctScanSegmentation:
+        model: "3d-unet-ct-v1"
+        inputSize: [128, 128, 128]
+        organs:
+          - liver
+          - kidneys
+          - spleen
+          - pancreas
+          - lungs
+      pathologyAnalysis:
+        model: "histopath-cnn-v2"
+        magnification: [40x, 20x, 10x]
+        stainTypes:
+          - H&E
+          - immunohistochemistry
+    
+    inference:
+      batchSize: 8
+      precision: "fp16"
+      tensorrtOptimization: true
+      dynamicBatching: true
+      
+    preprocessing:
+      normalization:
+        method: "z-score"
+        mean: [0.485, 0.456, 0.406]
+        std: [0.229, 0.224, 0.225]
+      augmentation:
+        enabled: false  # 推理时不启用
+
+# 全局配置映射
+configMaps:
+  appConfig:
+    data:
+      application.yaml: |
+        server:
+          port: 8080
+          tomcat:
+            max-threads: 500
+            min-spare-threads: 50
+            accept-count: 100
+            connection-timeout: 20000
+        
+        spring:
+          application:
+            name: cdss-core
+          profiles:
+            active: production
+          main:
+            allow-bean-definition-overriding: true
+          jackson:
+            serialization:
+              write-dates-as-timestamps: false
+            default-property-inclusion: non_null
+          
+          # 数据源配置
+          datasource:
+            type: com.zaxxer.hikari.HikariDataSource
+            driver-class-name: org.postgresql.Driver
+            url: jdbc:postgresql://${POSTGRES_HOST:cdss-postgresql-ha}:5432/cdss_db?currentSchema=cdss
+            username: ${POSTGRES_USER:cdss_admin}
+            password: ${POSTGRES_PASSWORD}
+            hikari:
+              pool-name: CDSS-HikariPool
+              minimum-idle: 20
+              maximum-pool-size: 100
+              idle-timeout: 300000
+              max-lifetime: 1800000
+              connection-timeout: 30000
+              connection-test-query: SELECT 1
+              validation-timeout: 5000
+          
+          # Redis配置
+          redis:
+            cluster:
+              nodes: ${REDIS_CLUSTER_NODES}
+              max-redirects: 3
+            password: ${REDIS_PASSWORD}
+            timeout: 5000ms
+            lettuce:
+              pool:
+                max-active: 100
+                max-idle: 50
+                min-idle: 20
+                max-wait: 3000ms
+          
+          # Kafka配置
+          kafka:
+            bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+            producer:
+              acks: all
+              retries: 3
+              batch-size: 16384
+              buffer-memory: 33554432
+              key-serializer: org.apache.kafka.common.serialization.StringSerializer
+              value-serializer: org.apache.kafka.common.serialization.StringSerializer
+            consumer:
+              group-id: cdss-consumer-group
+              auto-offset-reset: earliest
+              enable-auto-commit: false
+              max-poll-records: 500
+              key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+              value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+          
+          # Elasticsearch配置
+          elasticsearch:
+            uris: ${ELASTICSEARCH_URIS}
+            username: ${ELASTICSEARCH_USERNAME}
+            password: ${ELASTICSEARCH_PASSWORD}
+            connection-timeout: 5000
+            socket-timeout: 30000
+            
+        # CDSS业务配置
+        cdss:
+          # 决策引擎配置
+          decision-engine:
+            enabled: true
+            rule-cache-size: 10000
+            evaluation-timeout: 5s
+            max-concurrent-evaluations: 100
+            
+          # 知识库配置
+          knowledge-base:
+            update-interval: 24h
+            cache-ttl: 1h
+            search-result-limit: 100
+            
+          # 药物相互作用配置
+          drug-interaction:
+            enabled: true
+            severity-threshold: MODERATE
+            check-on-prescribing: true
+            
+          # 临床路径配置
+          clinical-pathway:
+            enabled: true
+            adherence-threshold: 0.8
+            deviation-alert: true
+            
+          # NLP配置
+          nlp:
+            enabled: true
+            supported-languages:
+              - zh-CN
+              - en-US
+            entity-types:
+              - SYMPTOM
+              - DISEASE
+              - MEDICATION
+              - PROCEDURE
+              - ANATOMY
+              
+        # 安全配置
+        security:
+          # JWT配置
+          jwt:
+            secret-name: cdss-jwt-secret
+            token-validity: 8h
+            refresh-token-validity: 7d
+            
+          # OAuth2配置
+          oauth2:
+            enabled: true
+            providers:
+              - wecom
+              - dingtalk
+              
+          # 访问控制
+          access-control:
+            enabled: true
+            rbac-policy: "classpath:rbac-policy.csv"
+            
+          # 审计日志
+          audit:
+            enabled: true
+            log-file: /var/log/cdss/audit.log
+            retention-days: 365
+            
+        # 监控配置
+        management:
+          endpoints:
+            web:
+              exposure:
+                include: health,info,metrics,prometheus,env,configprops,loggers,threaddump,heapdump
+          endpoint:
+            health:
+              show-details: when_authorized
+              probes:
+                enabled: true
+          metrics:
+            export:
+              prometheus:
+                enabled: true
+            tags:
+              application: ${spring.application.name}
+              environment: ${spring.profiles.active}
+          tracing:
+            sampling:
+              probability: 0.1
+            
+        # 日志配置
+        logging:
+          level:
+            root: INFO
+            com.medical.cdss: DEBUG
+            org.springframework.security: WARN
+          pattern:
+            console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId},%X{spanId}] %logger{36} - %msg%n"
+            file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId},%X{spanId}] %logger{36} - %msg%n"
+          file:
+            name: /var/log/cdss/application.log
+            max-size: 100MB
+            max-history: 30
+            total-size-cap: 10GB
+
+# 外部依赖Secret (通过external-secrets或手动创建)
+externalSecrets:
+  enabled: true
+  
+  secrets:
+    - name: cdss-db-credentials
+      data:
+        POSTGRES_PASSWORD: "<base64-encoded-password>"
+        
+    - name: cdss-redis-credentials
+      data:
+        REDIS_PASSWORD: "<base64-encoded-password>"
+        
+    - name: cdss-jwt-secret
+      data:
+        JWT_SECRET_KEY: "<base64-encoded-secret>"
+        
+    - name: cdss-oauth-credentials
+      data:
+        WECOM_CLIENT_ID: "<base64-encoded>"
+        WECOM_CLIENT_SECRET: "<base64-encoded>"
+        DINGTALK_CLIENT_ID: "<base64-encoded>"
+        DINGTALK_CLIENT_SECRET: "<base64-encoded>"
