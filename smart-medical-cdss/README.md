@@ -1,230 +1,57 @@
-# 智慧医疗临床决策支持系统(CDSS) - 项目文档
+# React + TypeScript + Vite
 
-**项目名称：** 智慧医疗临床决策支持系统 (Clinical Decision Support System)
-**项目版本：** v1.0
-**创建日期：** 2026年5月6日
-**文档状态：** 正式版
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
----
+Currently, two official plugins are available:
 
-## 📁 项目目录结构
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
 
-```
-smart-medical-cdss/
-├── README.md                           # 项目总览文档
-│
-├── architecture/                       # 系统架构设计
-│   └── 系统架构设计.md
-│       ├── 总体架构设计
-│       ├── 核心模块架构（知识库、AI推理）
-│       ├── 数据流设计
-│       ├── 高可用与容灾架构
-│       ├── 安全架构设计
-│       └── 集成架构
-│
-├── technical-design/                   # 技术设计方案
-│   └── 技术设计方案.md
-│       ├── 技术栈选型矩阵
-│       ├── 微服务架构设计
-│       ├── 数据库设计（PostgreSQL/MongoDB/Neo4j/ES）
-│       ├── AI模型设计（大语言模型+知识图谱+规则引擎）
-│       ├── 接口设计规范
-│       ├── 安全设计（等保三级合规）
-│       └── 性能优化策略
-│
-├── development-plan/                   # 软件开发方案
-│   └── 软件开发方案.md
-│       ├── 项目组织架构（28人团队）
-│       ├── 敏捷开发流程（Scrum）
-│       ├── 四阶段项目里程碑（24周）
-│       ├── 质量管理体系
-│       ├── 风险管理策略
-│       ├── 配置管理与CI/CD
-│       └── 验收标准
-│
-├── features/                           # 软件功能介绍
-│   └── 软件功能介绍.md
-│       ├── 五大核心功能模块
-│       ├── 用户角色与权限体系
-│       ├── 产品特色亮点（双引擎推理、多模态融合）
-│       ├── 应用场景（门诊/住院/急诊）
-│       └── 医院系统集成方案
-│
-├── deployment/                         # 平台部署手册
-│   └── 平台部署手册.md
-│       ├── Kubernetes集群部署
-│       ├── 中间件部署（PostgreSQL/MongoDB/Neo4j/ES/Redis）
-│       ├── 高可用配置
-│       ├── 监控运维体系（Prometheus/Grafana/ELK）
-│       ├── 备份与恢复策略
-│       ├── 安全加固配置（等保三级）
-│       └── 灾难恢复预案
-│
-├── user-manual/                        # 用户操作手册
-│   └── 用户操作手册.md
-│       ├── 快速入门指南
-│       ├── 诊断辅助功能操作
-│       ├── 用药决策功能操作
-│       ├── 检查检验辅助操作
-│       ├── 治疗方案推荐操作
-│       ├── 病历质控功能操作
-│       ├── 常见问题FAQ
-│       └── 技术支持方式
-│
-├── presentation/                       # 平台介绍PPT
-│   └── 平台介绍PPT设计稿.md
-│       ├── 18页专业PPT设计稿
-│       ├── 每页内容要点
-│       ├── 设计建议与演讲提示
-│       └── 设计规范（配色、字体、布局）
-│
-└── references/                         # 参考资料目录
-    └── (预留)
+## Expanding the ESLint configuration
+
+If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+
+```js
+export default tseslint.config({
+  extends: [
+    // Remove ...tseslint.configs.recommended and replace with this
+    ...tseslint.configs.recommendedTypeChecked,
+    // Alternatively, use this for stricter rules
+    ...tseslint.configs.strictTypeChecked,
+    // Optionally, add this for stylistic rules
+    ...tseslint.configs.stylisticTypeChecked,
+  ],
+  languageOptions: {
+    // other options...
+    parserOptions: {
+      project: ['./tsconfig.node.json', './tsconfig.app.json'],
+      tsconfigRootDir: import.meta.dirname,
+    },
+  },
+})
 ```
 
----
+You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
 
-## 🎯 项目核心定位
+```js
+// eslint.config.js
+import reactX from 'eslint-plugin-react-x'
+import reactDom from 'eslint-plugin-react-dom'
 
-**智慧医疗临床决策支持系统(CDSS)** 是一款基于人工智能技术的专业级医疗辅助诊疗平台，通过整合 **医学知识库、知识图谱推理、大语言模型理解能力**，为临床医生提供实时、精准、智能化的诊断、用药、检查、治疗全流程决策支持。
-
-### 核心价值
-
-| 价值维度  | 指标              |
-| ----- | --------------- |
-| 诊断准确率 | Top3诊断准确率 ≥ 95% |
-| 用药安全  | 用药错误拦截率 ≥ 99%   |
-| 系统响应  | 单次决策响应时间 ≤ 3秒   |
-| 系统可用性 | SLA ≥ 99.99%    |
-| 并发支持  | 支持 ≥ 1000医生同时在线 |
-
----
-
-## 🏗️ 核心技术架构
-
-### 技术栈选型
-
-| 技术领域      | 选型方案                                        |
-| --------- | ------------------------------------------- |
-| **后端开发**  | Java Spring Boot 3.x + Spring Cloud Alibaba |
-| **AI推理**  | Python + PyTorch + 医学大语言模型微调                |
-| **前端开发**  | React 18 + TypeScript                       |
-| **移动应用**  | Flutter 3.x                                 |
-| **主数据库**  | PostgreSQL 16.x                             |
-| **文档数据库** | MongoDB 7.x                                 |
-| **知识图谱**  | Neo4j 5.x                                   |
-| **搜索引擎**  | Elasticsearch 8.x                           |
-| **缓存中间件** | Redis 7.x Cluster                           |
-| **消息队列**  | Apache Kafka 3.x                            |
-| **规则引擎**  | Drools 7.x                                  |
-| **服务网格**  | Istio 1.x                                   |
-| **容器编排**  | Kubernetes 1.29                             |
-
-### AI混合推理引擎
-
+export default tseslint.config({
+  extends: [
+    // other configs...
+    // Enable lint rules for React
+    reactX.configs['recommended-typescript'],
+    // Enable lint rules for React DOM
+    reactDom.configs.recommended,
+  ],
+  languageOptions: {
+    // other options...
+    parserOptions: {
+      project: ['./tsconfig.node.json', './tsconfig.app.json'],
+      tsconfigRootDir: import.meta.dirname,
+    },
+  },
+})
 ```
-患者病历数据输入
-    ↓
-┌─────────────┐  ┌─────────────┐  ┌─────────────┐
-│ 大语言模型  │  │ 知识图谱推理 │  │ 规则引擎匹配 │
-│ LLM推理    │  │ 图计算      │  │ 临床规则    │
-└──────┬──────┘  └──────┬──────┘  └──────┬──────┘
-       │                │                │
-       └────────────────┼────────────────┘
-                        ↓
-            ┌─────────────────────┐
-            │  结果融合 + 循证排序  │
-            └──────────┬──────────┘
-                        ↓
-                  智能诊疗建议输出
-```
-
----
-
-## 📋 核心功能模块
-
-| 功能模块          | 核心能力                      |
-| ------------- | ------------------------- |
-| **🩺 智能诊断辅助** | 症状鉴别、疾病诊断、并发症预警、重症识别、依据溯源 |
-| **💊 用药决策支持** | 药物相互作用、过敏提醒、剂量计算、禁忌症、配伍禁忌 |
-| **🧪 检查检验辅助** | 合理检查推荐、结果解读、异常分析、危急值预警    |
-| **💡 治疗方案推荐** | 指南匹配、个体化治疗、临床路径、随访计划      |
-| **📝 病历质控引擎** | 完整性检查、时限监控、术语标准化、逻辑校验     |
-| **🔬 科研支持平台** | 病例检索、统计分析、队列管理、真实世界研究     |
-
----
-
-## 🔒 安全与合规
-
-- ✅ **等保三级认证**：符合国家网络安全等级保护三级要求
-- ✅ **HIPAA合规**：符合美国健康保险流通与责任法案
-- ✅ **HL7 FHIR标准**：遵循医疗数据国际交互标准
-- ✅ **全链路加密**：TLS 1.3传输加密 + AES-256存储加密
-- ✅ **审计留痕**：所有操作日志留存≥6个月
-- ✅ **隐私保护**：数据脱敏去标识化处理
-
----
-
-## 🚀 项目实施计划
-
-| 阶段               | 时间     | 主要内容            |
-| ---------------- | ------ | --------------- |
-| **Phase 1 启动准备** | 第1周    | 项目启动会、需求调研、方案确认 |
-| **Phase 2 系统部署** | 第2-4周  | 环境部署、数据初始化、系统联调 |
-| **Phase 3 测试上线** | 第5-6周  | 用户培训、试运行、试点科室上线 |
-| **Phase 4 运营优化** | 第7-12周 | 全院上线、效果评估、持续优化  |
-
-**总实施周期：8-12周（根据医院规模调整）**
-
----
-
-## 👥 团队配置（28人）
-
-| 角色        | 人数  | 职责         |
-| --------- | --- | ---------- |
-| 项目经理      | 1   | 项目整体管理     |
-| 产品负责人     | 1   | 产品规划需求管理   |
-| 技术负责人     | 1   | 架构设计技术难题   |
-| 后端开发工程师   | 6   | 微服务开发      |
-| 前端开发工程师   | 3   | Web/移动端开发  |
-| AI算法工程师   | 4   | 模型训练推理     |
-| 数据工程师     | 2   | 数据集成ETL    |
-| 测试工程师     | 3   | 功能/性能/安全测试 |
-| DevOps工程师 | 2   | CI/CD运维部署  |
-| UI/UX设计师  | 2   | 界面交互设计     |
-| 医学专家顾问    | 3   | 医学知识审核     |
-| 安全合规专家    | 1   | 等保合规审核     |
-
----
-
-## 📊 典型客户效果数据
-
-| 指标       | 改善幅度  |
-| -------- | ----- |
-| 诊断准确率    | +18%  |
-| 用药差错拦截率  | 99.2% |
-| 平均诊疗时间   | -42%  |
-| 病历质控合格率  | +25%  |
-| 医疗纠纷赔付   | -60%  |
-| ROI投入产出比 | > 1:5 |
-
----
-
-## 📞 技术支持
-
-- **服务热线：** 400-xxx-xxxx（7×24小时）
-- **邮件支持：** support@cdss.com
-- **现场支持：** 信息科驻场服务
-- **知识库：** https://docs.cdss.com
-
----
-
-## 📝 文档更新记录
-
-| 版本   | 日期         | 更新内容           | 更新人 |
-| ---- | ---------- | -------------- | --- |
-| v1.0 | 2026-05-06 | 项目正式版，完成所有核心文档 | 项目组 |
-
----
-
-**版权所有 © 2026 智慧医疗CDSS项目组 保留所有权利**
